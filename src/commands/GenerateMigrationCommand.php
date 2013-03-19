@@ -83,20 +83,20 @@ class GenerateMigrationCommand extends Generate {
   {
     // create_users_table
     // add_user_id_to_posts_table
-    $pieces = explode('_', $this->argument('fileName'));
-
-    $action = $pieces[0];
-
-    // If the migration name is create_users,
-    // then we'll set the tableName to the last
-    // item. But, if it's create_users_table,
-    // then we have to compensate, accordingly.
-    $tableName = end($pieces);
-    if ( $tableName === 'table' )
-    {
-      $tableName = prev($pieces);
+    list($firstHalf, $secondHalf) = explode('-', $this->argument('fileName'), 2);
+    if ($secondHalf) {
+    	$firstHalf = explode('_', $firstHalf);
+    	$secondHalf = explode('_', $secondHalf);
+    	$action = array_shift($firstHalf);
+    	if (end($secondHalf) == 'table') { array_pop($secondHalf); }
+    	$tableName = implode('_', $firstHalf).'.'.implode('_', $secondHalf);
+    } else {
+    	$firstHalf = explode('_', $firstHalf);
+    	$action = array_shift($firstHalf);
+    	if (end($firstHalf) == 'table') { array_pop($firstHalf); }
+    	$tableName = implode('_', $firstHalf);
     }
-
+    
     // For example: ['add', 'posts']
     return array($action, $tableName);
   }
@@ -266,6 +266,15 @@ class GenerateMigrationCommand extends Generate {
    */
   protected function replaceTableNameInTemplate($template)
   {
+    $pgschema = '';
+    if (preg_match("/\./", $this->tableName)) {
+    	    $tableDetails = explode('.', $this->tableName);
+    	    $pgschema = "if (!DB::selectOne('SELECT schema_name FROM information_schema.schemata WHERE schema_name = ?', array('{$tableDetails[0]}'))) {
+			DB::statement('CREATE SCHEMA {$tableDetails[0]}');
+		}
+";
+    }
+    $template = str_replace('{{pgschema}}', $pgschema, $template);
     return str_replace('{{tableName}}', $this->tableName, $template);
   }
 
